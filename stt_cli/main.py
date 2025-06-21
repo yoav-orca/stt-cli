@@ -1,5 +1,6 @@
 """Main CLI module for speech-to-text transcription."""
 
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -57,6 +58,12 @@ def cli():
     type=click.Path(exists=True, path_type=Path),
     help="Path to Google Cloud service account JSON file",
 )
+@click.option(
+    "--gcs-bucket",
+    envvar="STT_CLI_GCS_BUCKET",
+    help="Google Cloud Storage bucket name for large files. If not specified, uses PROJECT_ID-stt-cli-audio. "
+    "Can also be set via STT_CLI_GCS_BUCKET environment variable.",
+)
 def transcribe(
     audio_file: Path,
     min_speakers: int,
@@ -65,6 +72,7 @@ def transcribe(
     output_format: str,
     output_file: Optional[Path],
     google_credentials: Optional[Path],
+    gcs_bucket: Optional[str],
 ):
     """Transcribe audio file with speaker diarization and language detection."""
     # Validate speaker count
@@ -92,7 +100,7 @@ def transcribe(
     try:
         # Initialize components
         audio_processor = AudioProcessor()
-        speech_client = SpeechClient(credentials_path=google_credentials)
+        speech_client = SpeechClient(credentials_path=google_credentials, bucket_name=gcs_bucket)
         formatter = OutputFormatter()
 
         # Process audio file

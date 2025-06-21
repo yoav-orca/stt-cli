@@ -169,33 +169,40 @@ class SpeechClient:
         return results
 
     def _get_or_create_bucket(self) -> str:
-        """Get or create a temporary bucket for file uploads."""
+        """Get or create a bucket for file uploads."""
         if self.bucket_name:
             return self.bucket_name
             
         if self._temp_bucket:
             return self._temp_bucket
             
-        # Create a temporary bucket name
+        # Create bucket name based on project ID
         project_id = self.storage_client.project
         if not project_id:
             raise ValueError("No project ID found. Please set up Google Cloud credentials properly.")
             
-        bucket_name = f"stt-cli-temp-{uuid.uuid4().hex[:8]}"
+        # Use consistent bucket name derived from project ID
+        bucket_name = f"{project_id}-stt-cli-audio"
         
         try:
-            # Try to create bucket in us-central1 (good for Speech API)
+            # Check if bucket already exists
             bucket = self.storage_client.bucket(bucket_name)
+            if bucket.exists():
+                self._temp_bucket = bucket_name
+                return bucket_name
+                
+            # Create bucket in us-central1 (good for Speech API)
             bucket.create(location="us-central1")
             self._temp_bucket = bucket_name
             return bucket_name
         except Exception as e:
-            # If bucket creation fails, try with a different name
-            bucket_name = f"stt-cli-temp-{uuid.uuid4().hex[:8]}-{uuid.uuid4().hex[:4]}"
+            # If creation fails, it might already exist (race condition) - try to use it
             bucket = self.storage_client.bucket(bucket_name)
-            bucket.create(location="us-central1")
-            self._temp_bucket = bucket_name
-            return bucket_name
+            if bucket.exists():
+                self._temp_bucket = bucket_name
+                return bucket_name
+            else:
+                raise ValueError(f"Failed to create or access bucket {bucket_name}: {e}")
 
     def _upload_to_gcs(self, content: bytes) -> str:
         """Upload audio content to Google Cloud Storage and return the URI."""

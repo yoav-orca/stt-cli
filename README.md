@@ -105,6 +105,7 @@ Transcribe audio file with speaker diarization and language detection.
 - `--output-format [text|json|detailed]`: Output format (default: text)
 - `--output-file PATH`: Output file path (default: stdout)
 - `--google-credentials PATH`: Path to Google Cloud service account JSON file
+- `--gcs-bucket TEXT`: Google Cloud Storage bucket name for large files (default: PROJECT_ID-stt-cli-audio)
 
 ## Supported Audio Formats
 
@@ -183,6 +184,20 @@ Common language codes:
 - `es-ES` - Spanish (Spain)
 - `fr-FR` - French (France)
 - `de-DE` - German (Germany)
+
+## Environment Variables
+
+- `STT_CLI_GCS_BUCKET`: Set the Google Cloud Storage bucket name for large file uploads
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to Google Cloud service account JSON file
+
+## Large File Handling
+
+For audio files larger than 10MB, the CLI automatically uploads them to Google Cloud Storage before processing. By default, it creates a bucket named `{PROJECT_ID}-stt-cli-audio`. You can customize this by:
+
+1. Using the `--gcs-bucket` option
+2. Setting the `STT_CLI_GCS_BUCKET` environment variable
+
+The bucket will be created automatically if it doesn't exist (requires appropriate GCS permissions).
 
 ## Development
 

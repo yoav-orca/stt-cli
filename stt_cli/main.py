@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -11,6 +12,23 @@ import click
 from .audio_processor import AudioProcessor
 from .output_formatter import OutputFormatter
 from .speech_client import SpeechClient
+
+
+def format_duration(seconds: float) -> str:
+    """Format duration in a human-readable way.
+    
+    Args:
+        seconds: Duration in seconds
+        
+    Returns:
+        Formatted duration string
+    """
+    if seconds < 60:
+        return f"{seconds:.1f} seconds"
+    else:
+        minutes = int(seconds // 60)
+        remaining_seconds = seconds % 60
+        return f"{minutes}m {remaining_seconds:.1f}s"
 
 
 class DefaultGroup(click.Group):
@@ -172,12 +190,15 @@ def transcribe(
         logging.info("Uploading to S3 and starting transcription job...")
         logging.info("This may take several minutes depending on file size...")
             
+        start_time = time.time()
         result = speech_client.transcribe(
             audio_config=audio_config,
             min_speakers=min_speakers,
             max_speakers=max_speakers,
             languages=list(languages),
         )
+        end_time = time.time()
+        duration = round(end_time - start_time, 2)
 
         logging.info("Transcription completed successfully")
 
@@ -190,6 +211,8 @@ def transcribe(
             click.echo(f"Results written to: {output_file}")
         else:
             click.echo(output)
+
+        logging.info(f"Transcription took {format_duration(duration)}")
 
     except Exception as e:
         click.echo(f"Error: {e}", err=True)

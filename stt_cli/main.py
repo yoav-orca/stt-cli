@@ -13,14 +13,24 @@ from .output_formatter import OutputFormatter
 from .speech_client import SpeechClient
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option()
-def cli():
+@click.pass_context
+def cli(ctx):
     """Speech-to-text CLI with AWS Transcribe.
 
     Supports speaker diarization and automatic language detection.
+    
+    If no command is specified, 'transcribe' is used by default.
     """
-    pass
+    # If no subcommand is provided, show help for transcribe command
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        click.echo("\nTo transcribe an audio file, use:")
+        click.echo("  stt-cli transcribe <audio_file>")
+        click.echo("\nOr simply:")
+        click.echo("  stt-cli <audio_file>")
+        sys.exit(0)
 
 
 @cli.command()
@@ -102,6 +112,13 @@ def transcribe(
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         logging.getLogger('stt_cli').setLevel(logging.DEBUG)
+    else:
+        # Set up basic info logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(levelname)s: %(message)s'
+        )
+        logging.getLogger('stt_cli').setLevel(logging.INFO)
     
     # Validate speaker count (AWS supports up to 30 speakers)
     if min_speakers < 1 or min_speakers > 30:
@@ -137,15 +154,15 @@ def transcribe(
         formatter = OutputFormatter()
 
         # Process audio file
-        click.echo(f"Processing audio file: {audio_file}")
+        logging.info(f"Processing audio file: {audio_file}")
         audio_config = audio_processor.process_file(audio_file)
 
         # Check file size and inform user
-        file_size_mb = len(audio_config.content) if audio_config.content else 0 / (1024 * 1024)
-        click.echo(f"File size: {file_size_mb:.1f} MB")
+        file_size_mb = len(audio_config.content) / (1024 * 1024) if audio_config.content else 0
+        logging.info(f"File size: {file_size_mb:.1f} MB")
         
-        click.echo("Uploading to S3 and starting transcription job...")
-        click.echo("This may take several minutes depending on file size...")
+        logging.info("Uploading to S3 and starting transcription job...")
+        logging.info("This may take several minutes depending on file size...")
             
         result = speech_client.transcribe(
             audio_config=audio_config,
@@ -153,6 +170,8 @@ def transcribe(
             max_speakers=max_speakers,
             languages=list(languages),
         )
+
+        logging.info("Transcription completed successfully")
 
         # Format output
         output = formatter.format_result(result, output_format)

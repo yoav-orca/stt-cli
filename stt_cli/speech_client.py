@@ -1,5 +1,6 @@
 """Google Cloud Speech-to-Text client wrapper with speaker diarization."""
 
+import logging
 import tempfile
 import uuid
 from pathlib import Path
@@ -8,6 +9,9 @@ from typing import Optional
 from google.cloud import speech_v1p1beta1 as speech
 from google.cloud import storage
 from google.oauth2 import service_account
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 class AudioConfig:
@@ -85,11 +89,19 @@ class SpeechClient:
         if languages is None:
             languages = ["iw-IL", "en-US"]  # Hebrew first for better detection (iw-IL is correct code)
 
+        # Check if diarization is supported for the primary language
+        # Speaker diarization is not supported for Hebrew (iw-IL)
+        diarization_unsupported_languages = ['iw-IL', 'he-IL']
+        enable_diarization = languages[0] not in diarization_unsupported_languages
+        
+        if not enable_diarization and (min_speakers > 1 or max_speakers > 1):
+            logger.warning(f"Speaker diarization is not supported for {languages[0]}. Disabling diarization.")
+        
         # Configure speaker diarization
         diarization_config = speech.SpeakerDiarizationConfig(
-            enable_speaker_diarization=True,
-            min_speaker_count=min_speakers,
-            max_speaker_count=max_speakers,
+            enable_speaker_diarization=enable_diarization,
+            min_speaker_count=min_speakers if enable_diarization else 1,
+            max_speaker_count=max_speakers if enable_diarization else 1,
         )
 
         # Configure recognition with better settings for Hebrew/multilingual
@@ -140,18 +152,7 @@ class SpeechClient:
                 continue
 
             alternative = result.alternatives[0]
-
-            # Extract speaker information if available
-            speaker_tag = None
-            if hasattr(result, 'speaker_tag'):
-                speaker_tag = result.speaker_tag
-            elif hasattr(alternative, 'words') and alternative.words:
-                # Get speaker tag from words (speaker diarization info is in words)
-                for word in alternative.words:
-                    if hasattr(word, 'speaker_tag') and word.speaker_tag is not None:
-                        speaker_tag = word.speaker_tag
-                        break
-
+            
             # Determine language
             language_code = "unknown"
             if hasattr(result, 'language_code'):
@@ -159,12 +160,55 @@ class SpeechClient:
             elif hasattr(alternative, 'language_code'):
                 language_code = alternative.language_code
 
-            results.append(TranscriptionResult(
-                transcript=alternative.transcript.strip(),
-                confidence=alternative.confidence,
-                language_code=language_code,
-                speaker_tag=speaker_tag,
-            ))
+            # Check if we have word-level information with speaker tags
+            if hasattr(alternative, 'words') and alternative.words:
+                logger.debug(f"Processing {len(alternative.words)} words with potential speaker tags")
+                
+                # Group words by speaker
+                current_speaker = None
+                current_words = []
+                word_groups = []
+                
+                for word in alternative.words:
+                    speaker_tag = getattr(word, 'speaker_tag', None)
+                    
+                    if speaker_tag != current_speaker:
+                        if current_words:
+                            word_groups.append((current_speaker, current_words))
+                        current_speaker = speaker_tag
+                        current_words = [word]
+                    else:
+                        current_words.append(word)
+                
+                # Add the last group
+                if current_words:
+                    word_groups.append((current_speaker, current_words))
+                
+                logger.debug(f"Found {len(word_groups)} speaker segments")
+                
+                # Create a result for each speaker segment
+                for speaker_tag, words in word_groups:
+                    # Reconstruct transcript from words
+                    transcript = ' '.join(getattr(w, 'word', '') for w in words)
+                    
+                    # Calculate average confidence
+                    confidences = [getattr(w, 'confidence', 0) for w in words if hasattr(w, 'confidence')]
+                    avg_confidence = sum(confidences) / len(confidences) if confidences else alternative.confidence
+                    
+                    results.append(TranscriptionResult(
+                        transcript=transcript.strip(),
+                        confidence=avg_confidence,
+                        language_code=language_code,
+                        speaker_tag=speaker_tag,
+                    ))
+            else:
+                # No word-level information, return the whole transcript
+                results.append(TranscriptionResult(
+                    transcript=alternative.transcript.strip(),
+                    confidence=alternative.confidence,
+                    language_code=language_code,
+                    speaker_tag=None,
+                ))
 
         return results
 

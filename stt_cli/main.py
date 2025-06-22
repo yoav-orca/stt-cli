@@ -1,5 +1,6 @@
 """Main CLI module for speech-to-text transcription."""
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -64,6 +65,11 @@ def cli():
     help="Google Cloud Storage bucket name for large files. If not specified, uses PROJECT_ID-stt-cli-audio. "
     "Can also be set via STT_CLI_GCS_BUCKET environment variable.",
 )
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debug logging",
+)
 def transcribe(
     audio_file: Path,
     min_speakers: int,
@@ -73,8 +79,17 @@ def transcribe(
     output_file: Optional[Path],
     google_credentials: Optional[Path],
     gcs_bucket: Optional[str],
+    debug: bool,
 ):
     """Transcribe audio file with speaker diarization and language detection."""
+    # Configure logging if debug is enabled
+    if debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        logging.getLogger('stt_cli').setLevel(logging.DEBUG)
+    
     # Validate speaker count
     if min_speakers < 1 or min_speakers > 10:
         click.echo("Error: min-speakers must be between 1 and 10", err=True)
@@ -96,6 +111,11 @@ def transcribe(
     # Default languages if none specified (Hebrew first for better detection)
     if not languages:
         languages = ("iw-IL", "en-US")
+    
+    # Warn about speaker diarization limitations
+    if languages[0] == "iw-IL" and (min_speakers > 1 or max_speakers > 1):
+        click.echo("Warning: Speaker diarization is not supported for Hebrew (iw-IL) by Google Cloud Speech-to-Text.", err=True)
+        click.echo("The transcription will proceed without speaker separation.", err=True)
 
     try:
         # Initialize components

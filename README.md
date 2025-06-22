@@ -228,6 +228,7 @@ uv run ruff format
 - Requires Google Cloud credentials and active billing account
 - Speaker diarization works best with clear audio and distinct speakers
 - Language detection is limited to 3 languages per request
+- **Speaker diarization is not supported for Hebrew (iw-IL)** - this is a limitation of the Google Cloud Speech-to-Text API
 
 ## Support
 

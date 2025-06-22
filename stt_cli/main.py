@@ -13,28 +13,31 @@ from .output_formatter import OutputFormatter
 from .speech_client import SpeechClient
 
 
-@click.group(invoke_without_command=True)
+class DefaultGroup(click.Group):
+    def get_command(self, ctx, cmd_name):
+        # Only return the command if it exists
+        return click.Group.get_command(self, ctx, cmd_name)
+    def parse_args(self, ctx, args):
+        # If the first argument is not a command, insert the default command
+        if args and not self.get_command(ctx, args[0]):
+            args.insert(0, 'transcribe')
+        super().parse_args(ctx, args)
+
+
+@click.group(cls=DefaultGroup)
 @click.version_option()
-@click.pass_context
-def cli(ctx):
+def cli():
     """Speech-to-text CLI with AWS Transcribe.
 
     Supports speaker diarization and automatic language detection.
     
     If no command is specified, 'transcribe' is used by default.
     """
-    # If no subcommand is provided, show help for transcribe command
-    if ctx.invoked_subcommand is None:
-        click.echo(ctx.get_help())
-        click.echo("\nTo transcribe an audio file, use:")
-        click.echo("  stt-cli transcribe <audio_file>")
-        click.echo("\nOr simply:")
-        click.echo("  stt-cli <audio_file>")
-        sys.exit(0)
+    pass
 
 
 @cli.command()
-@click.argument("audio_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("audio_file", required=False, type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--min-speakers",
     type=int,
@@ -92,19 +95,24 @@ def cli(ctx):
     help="Enable debug logging",
 )
 def transcribe(
-    audio_file: Path,
-    min_speakers: int,
-    max_speakers: int,
-    languages: tuple[str, ...],
-    output_format: str,
-    output_file: Optional[Path],
-    aws_access_key_id: Optional[str],
-    aws_secret_access_key: Optional[str],
-    aws_region: str,
-    s3_bucket: Optional[str],
-    debug: bool,
+    audio_file: Optional[Path] = None,
+    min_speakers: int = 1,
+    max_speakers: int = 6,
+    languages: tuple[str, ...] = (),
+    output_format: str = "text",
+    output_file: Optional[Path] = None,
+    aws_access_key_id: Optional[str] = None,
+    aws_secret_access_key: Optional[str] = None,
+    aws_region: str = "us-east-1",
+    s3_bucket: Optional[str] = None,
+    debug: bool = False,
 ):
     """Transcribe audio file with speaker diarization and language detection."""
+    if audio_file is None:
+        click.echo("Error: Missing required argument 'AUDIO_FILE'", err=True)
+        click.echo(transcribe.get_help(click.Context(transcribe)))
+        sys.exit(2)
+
     # Configure logging if debug is enabled
     if debug:
         logging.basicConfig(

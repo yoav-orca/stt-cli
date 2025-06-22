@@ -1,14 +1,15 @@
 # Speech-to-Text CLI
 
-A powerful command-line interface for speech-to-text transcription using Google Vertex AI, with built-in support for speaker diarization and automatic language detection.
+A powerful command-line interface for speech-to-text transcription using AWS Transcribe, with built-in support for speaker diarization and automatic language detection.
 
 ## Features
 
-- **Speaker Diarization**: Automatically identify and label different speakers in audio recordings
+- **Speaker Diarization**: Automatically identify and label different speakers in audio recordings (up to 30 speakers)
 - **Automatic Language Detection**: Support for mixed-language conversations (Hebrew and English by default)
-- **Multiple Audio Formats**: Support for WAV, MP3, FLAC, OGG, WebM, AMR, and AMR-WB files
+- **Multiple Audio Formats**: Support for WAV, MP3, MP4, M4A, FLAC, OGG, AMR, and WebM files
 - **Flexible Output Formats**: Text, JSON, and detailed formats available
 - **Easy Installation**: Install via pipx for global CLI access
+- **Hebrew Support**: Full speaker diarization support for Hebrew language
 
 ## Installation
 
@@ -34,19 +35,33 @@ uv install -e .
 
 ## Prerequisites
 
-### Google Cloud Setup
+### AWS Setup
 
-1. **Create a Google Cloud Project** and enable the Speech-to-Text API
+1. **Create an AWS Account** and ensure you have access to Amazon Transcribe
 2. **Set up authentication** using one of these methods:
 
-   **Option 1: Service Account (Recommended)**
-   - Create a service account in the Google Cloud Console
-   - Download the JSON key file
-   - Use the `--google-credentials` flag to specify the path
+   **Option 1: Environment Variables (Recommended)**
+   ```bash
+   export AWS_ACCESS_KEY_ID=your_access_key_id
+   export AWS_SECRET_ACCESS_KEY=your_secret_access_key
+   export AWS_DEFAULT_REGION=us-east-1
+   ```
 
-   **Option 2: Application Default Credentials**
-   - Install and initialize the Google Cloud CLI: `gcloud auth application-default login`
-   - The CLI will automatically use these credentials
+   **Option 2: AWS CLI Configuration**
+   ```bash
+   aws configure
+   ```
+
+   **Option 3: CLI Options**
+   Use the `--aws-access-key-id`, `--aws-secret-access-key`, and `--aws-region` options
+
+3. **Required AWS Permissions**:
+   - `transcribe:StartTranscriptionJob`
+   - `transcribe:GetTranscriptionJob`
+   - `transcribe:DeleteTranscriptionJob`
+   - `s3:CreateBucket`
+   - `s3:PutObject`
+   - `s3:DeleteObject`
 
 ## Usage
 
@@ -56,11 +71,11 @@ uv install -e .
 # Transcribe an audio file with default settings
 stt-cli transcribe audio.wav
 
-# Specify custom speaker range
-stt-cli transcribe --min-speakers 2 --max-speakers 4 audio.wav
+# Specify custom speaker range (up to 30 speakers)
+stt-cli transcribe --min-speakers 2 --max-speakers 8 audio.wav
 
 # Use specific languages for detection
-stt-cli transcribe --languages iw-IL --languages en-US audio.wav
+stt-cli transcribe --languages he-IL --languages en-US audio.wav
 
 # Output in JSON format
 stt-cli transcribe --output-format json audio.wav
@@ -75,14 +90,18 @@ stt-cli transcribe --output-file transcript.txt audio.wav
 # Detailed output with confidence scores
 stt-cli transcribe --output-format detailed audio.wav
 
-# Use service account credentials
-stt-cli transcribe --google-credentials /path/to/credentials.json audio.wav
+# Use specific AWS credentials and region
+stt-cli transcribe \
+  --aws-access-key-id YOUR_KEY \
+  --aws-secret-access-key YOUR_SECRET \
+  --aws-region us-west-2 \
+  audio.wav
 
 # Process with specific speaker count and languages
 stt-cli transcribe \
-  --min-speakers 1 \
-  --max-speakers 3 \
-  --languages iw-IL \
+  --min-speakers 2 \
+  --max-speakers 5 \
+  --languages he-IL \
   --languages en-US \
   --output-format json \
   --output-file results.json \
@@ -99,32 +118,36 @@ Transcribe audio file with speaker diarization and language detection.
 - `AUDIO_FILE`: Path to the audio file to transcribe
 
 **Options:**
-- `--min-speakers INTEGER`: Minimum number of speakers (1-10, default: 1)
-- `--max-speakers INTEGER`: Maximum number of speakers (1-10, default: 6)
-- `--languages TEXT`: Languages to detect (up to 3). Use language codes like 'iw-IL', 'en-US'
+- `--min-speakers INTEGER`: Minimum number of speakers (1-30, default: 1)
+- `--max-speakers INTEGER`: Maximum number of speakers (1-30, default: 6)
+- `--languages TEXT`: Languages to detect (up to 4). Use language codes like 'he-IL', 'en-US'
 - `--output-format [text|json|detailed]`: Output format (default: text)
 - `--output-file PATH`: Output file path (default: stdout)
-- `--google-credentials PATH`: Path to Google Cloud service account JSON file
-- `--gcs-bucket TEXT`: Google Cloud Storage bucket name for large files (default: PROJECT_ID-stt-cli-audio)
+- `--aws-access-key-id TEXT`: AWS access key ID
+- `--aws-secret-access-key TEXT`: AWS secret access key
+- `--aws-region TEXT`: AWS region (default: us-east-1)
+- `--s3-bucket TEXT`: S3 bucket name for audio uploads (optional)
+- `--debug`: Enable debug logging
 
 ## Supported Audio Formats
 
-- **WAV** (.wav) - Linear PCM
-- **FLAC** (.flac) - Free Lossless Audio Codec
+- **WAV** (.wav) - Waveform Audio File Format
 - **MP3** (.mp3) - MPEG Audio Layer III
-- **OGG** (.ogg) - Ogg Opus
-- **WebM** (.webm) - WebM Opus
+- **MP4** (.mp4) - MPEG-4 Audio
+- **M4A** (.m4a) - MPEG-4 Audio (Apple format)
+- **FLAC** (.flac) - Free Lossless Audio Codec
+- **OGG** (.ogg) - Ogg Vorbis
 - **AMR** (.amr) - Adaptive Multi-Rate
-- **AMR-WB** (.awb) - Adaptive Multi-Rate Wideband
+- **WebM** (.webm) - WebM Audio
 
 ## Output Formats
 
 ### Text Format (Default)
 ```
-[Speaker 1]
+[Speaker 0]
 Hello, how are you today?
 
-[Speaker 2]
+[Speaker 1]
 I'm doing well, thank you for asking.
 ```
 
@@ -137,7 +160,7 @@ I'm doing well, thank you for asking.
         "id": 1,
         "transcript": "Hello, how are you today?",
         "confidence": 0.95,
-        "speaker_tag": 1,
+        "speaker_tag": 0,
         "language_code": "en-US"
       }
     ],
@@ -160,7 +183,7 @@ Languages detected: en-US, he-IL
 === DETAILED TRANSCRIPTION ===
 
 Segment 1:
-  Speaker: Speaker 1
+  Speaker: Speaker 0
   Language: en-US
   Confidence: 95%
   Transcript: Hello, how are you today?
@@ -168,18 +191,18 @@ Segment 1:
 
 ## Language Support
 
-The CLI supports automatic detection of multiple languages. Default languages are Hebrew (iw-IL) and English (en-US), but you can specify up to 3 different languages:
+The CLI supports automatic detection of multiple languages. Default languages are Hebrew (he-IL) and English (en-US), but you can specify up to 4 different languages:
 
 ```bash
 # Detect Hebrew and English (default)
 stt-cli transcribe audio.wav
 
-# Detect Hebrew, English, and Spanish
-stt-cli transcribe --languages iw-IL --languages en-US --languages es-ES audio.wav
+# Detect Hebrew, English, Spanish, and French
+stt-cli transcribe --languages he-IL --languages en-US --languages es-ES --languages fr-FR audio.wav
 ```
 
 Common language codes:
-- `iw-IL` - Hebrew (Israel)
+- `he-IL` - Hebrew (Israel)
 - `en-US` - English (US)
 - `es-ES` - Spanish (Spain)
 - `fr-FR` - French (France)
@@ -187,17 +210,19 @@ Common language codes:
 
 ## Environment Variables
 
-- `STT_CLI_GCS_BUCKET`: Set the Google Cloud Storage bucket name for large file uploads
-- `GOOGLE_APPLICATION_CREDENTIALS`: Path to Google Cloud service account JSON file
+- `AWS_ACCESS_KEY_ID`: AWS access key ID
+- `AWS_SECRET_ACCESS_KEY`: AWS secret access key
+- `AWS_DEFAULT_REGION`: AWS region (default: us-east-1)
+- `STT_CLI_S3_BUCKET`: S3 bucket name for audio uploads
 
-## Large File Handling
+## File Processing
 
-For audio files larger than 10MB, the CLI automatically uploads them to Google Cloud Storage before processing. By default, it creates a bucket named `{PROJECT_ID}-stt-cli-audio`. You can customize this by:
+All audio files are automatically uploaded to Amazon S3 for processing by AWS Transcribe. The CLI handles:
 
-1. Using the `--gcs-bucket` option
-2. Setting the `STT_CLI_GCS_BUCKET` environment variable
-
-The bucket will be created automatically if it doesn't exist (requires appropriate GCS permissions).
+1. **Automatic S3 bucket creation** (if not specified)
+2. **File upload** to S3 with appropriate content type
+3. **Transcription job management** (start, monitor, retrieve results)
+4. **Cleanup** of temporary files and transcription jobs
 
 ## Development
 
@@ -224,11 +249,11 @@ uv run ruff format
 
 ## Limitations
 
-- Maximum file size depends on Google Cloud Speech-to-Text API limits
-- Requires Google Cloud credentials and active billing account
-- Speaker diarization works best with clear audio and distinct speakers
-- Language detection is limited to 3 languages per request
-- **Speaker diarization is not supported for Hebrew (iw-IL)** - this is a limitation of the Google Cloud Speech-to-Text API
+- Requires AWS credentials and active billing account
+- Audio files are temporarily uploaded to S3 (cleaned up after processing)
+- Processing time depends on file size and AWS Transcribe queue
+- Language detection is limited to 4 languages per request
+- Maximum 30 speakers for diarization
 
 ## Support
 

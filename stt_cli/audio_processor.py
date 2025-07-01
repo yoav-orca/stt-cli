@@ -1,5 +1,8 @@
 """Audio file processing and validation."""
 
+import logging
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -20,10 +23,24 @@ class AudioProcessor:
         '.amr': 'amr',
         '.webm': 'webm',
     }
+    
+    # Video formats that need ffmpeg conversion
+    # Note: .mp4 and .webm can contain audio-only, so they're not included here
+    VIDEO_FORMATS = {
+        '.avi',
+        '.mov',
+        '.mkv',
+        '.flv',
+        '.wmv',
+        '.mpg',
+        '.mpeg',
+        '.3gp',
+        '.m4v',
+    }
 
     def __init__(self):
         """Initialize the audio processor."""
-        pass
+        self.logger = logging.getLogger(__name__)
 
     def process_file(self, file_path: Path) -> AudioConfig:
         """Process an audio file and return AudioConfig.
@@ -40,6 +57,12 @@ class AudioProcessor:
         """
         if not file_path.exists():
             raise FileNotFoundError(f"Audio file not found: {file_path}")
+
+        # Check if it's a video file that needs conversion
+        if self._is_video_format(file_path):
+            self.logger.info(f"Detected video file {file_path.suffix}, converting to MP3...")
+            file_path = self._convert_video_to_mp3(file_path)
+            self.logger.info("Video conversion completed successfully")
 
         # Detect file format
         media_format = self._detect_format(file_path)
@@ -118,3 +141,71 @@ class AudioProcessor:
             List of supported file extensions
         """
         return list(self.SUPPORTED_FORMATS.keys())
+
+    def _is_video_format(self, file_path: Path) -> bool:
+        """Check if the file is a video format that needs conversion.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            True if the file is a video format, False otherwise
+        """
+        suffix = file_path.suffix.lower()
+        return suffix in self.VIDEO_FORMATS
+
+    def _convert_video_to_mp3(self, video_path: Path) -> Path:
+        """Convert video file to MP3 using ffmpeg.
+
+        Args:
+            video_path: Path to the video file
+
+        Returns:
+            Path to the converted MP3 file
+
+        Raises:
+            RuntimeError: If ffmpeg conversion fails
+        """
+        # Create a temporary MP3 file
+        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp_file:
+            mp3_path = Path(tmp_file.name)
+
+        try:
+            # Check if ffmpeg is available
+            result = subprocess.run(['ffmpeg', '-version'], capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError("ffmpeg is not installed or not available in PATH")
+
+            # Build ffmpeg command
+            cmd = [
+                'ffmpeg',
+                '-i', str(video_path),
+                '-vn',  # No video
+                '-acodec', 'mp3',
+                '-ab', '192k',  # Audio bitrate
+                '-ar', '16000',  # Sample rate optimized for speech
+                '-ac', '1',  # Mono audio
+                '-y',  # Overwrite output file
+                str(mp3_path)
+            ]
+
+            self.logger.debug(f"Running ffmpeg command: {' '.join(cmd)}")
+
+            # Run ffmpeg conversion
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                error_msg = f"ffmpeg conversion failed: {result.stderr}"
+                self.logger.error(error_msg)
+                # Clean up temporary file on failure
+                if mp3_path.exists():
+                    mp3_path.unlink()
+                raise RuntimeError(error_msg)
+
+            return mp3_path
+
+        except Exception as e:
+            # Clean up temporary file on any error
+            if mp3_path.exists():
+                mp3_path.unlink()
+            raise RuntimeError(f"Failed to convert video to MP3: {str(e)}")

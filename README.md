@@ -6,7 +6,7 @@ A powerful command-line interface for speech-to-text transcription using AWS Tra
 
 - **Speaker Diarization**: Automatically identify and label different speakers in audio recordings (up to 30 speakers)
 - **Automatic Language Detection**: Support for mixed-language conversations (Hebrew and English by default)
-- **Multiple Audio Formats**: Support for WAV, MP3, MP4, M4A, FLAC, OGG, AMR, and WebM files
+- **Multiple Audio/Video Formats**: Support for WAV, MP3, MP4, M4A, FLAC, OGG, AMR, WebM, and video formats (AVI, MOV, MKV, FLV, WMV, MPG, MPEG, 3GP, M4V) with automatic conversion
 - **Flexible Output Formats**: Text, JSON, and detailed formats available
 - **Easy Installation**: Install via pipx for global CLI access
 - **Hebrew Support**: Full speaker diarization support for Hebrew language
@@ -34,6 +34,24 @@ uv install -e .
 ```
 
 ## Prerequisites
+
+### ffmpeg (Required for video files)
+
+If you plan to transcribe video files, you'll need ffmpeg installed:
+
+**macOS:**
+```bash
+brew install ffmpeg
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install ffmpeg
+```
+
+**Windows:**
+Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
 
 ### AWS Setup
 
@@ -70,6 +88,9 @@ uv install -e .
 ```bash
 # Transcribe an audio file with default settings
 stt-cli transcribe audio.wav
+
+# Transcribe a video file (automatically converts to audio)
+stt-cli transcribe video.mp4
 
 # Specify custom speaker range (up to 30 speakers)
 stt-cli transcribe --min-speakers 2 --max-speakers 8 audio.wav
@@ -129,7 +150,9 @@ Transcribe audio file with speaker diarization and language detection.
 - `--s3-bucket TEXT`: S3 bucket name for audio uploads (optional)
 - `--debug`: Enable debug logging
 
-## Supported Audio Formats
+## Supported File Formats
+
+### Audio Formats (Direct Support)
 
 - **WAV** (.wav) - Waveform Audio File Format
 - **MP3** (.mp3) - MPEG Audio Layer III
@@ -139,6 +162,19 @@ Transcribe audio file with speaker diarization and language detection.
 - **OGG** (.ogg) - Ogg Vorbis
 - **AMR** (.amr) - Adaptive Multi-Rate
 - **WebM** (.webm) - WebM Audio
+
+### Video Formats (Automatic Conversion via ffmpeg)
+
+- **AVI** (.avi) - Audio Video Interleave
+- **MOV** (.mov) - QuickTime Movie
+- **MKV** (.mkv) - Matroska Video
+- **FLV** (.flv) - Flash Video
+- **WMV** (.wmv) - Windows Media Video
+- **MPG/MPEG** (.mpg, .mpeg) - Moving Picture Experts Group
+- **3GP** (.3gp) - 3GPP Multimedia
+- **M4V** (.m4v) - MPEG-4 Video
+
+When a video file is provided, the audio track is automatically extracted and converted to MP3 format for transcription.
 
 ## Output Formats
 

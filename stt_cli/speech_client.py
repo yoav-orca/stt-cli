@@ -72,15 +72,17 @@ class SpeechClient:
         min_speakers: int = 1,
         max_speakers: int = 6,
         languages: list[str] | None = None,
+        timeout: int = 3600,
     ) -> list[TranscriptionResult]:
         """Transcribe audio with speaker diarization and language detection.
-        
+
         Args:
             audio_config: Audio configuration
             min_speakers: Minimum number of speakers
             max_speakers: Maximum number of speakers
             languages: List of language codes for transcription
-            
+            timeout: Timeout in seconds for transcription job (default: 3600)
+
         Returns:
             List of transcription results with speaker information
         """
@@ -129,7 +131,7 @@ class SpeechClient:
             self.transcribe_client.start_transcription_job(**job_config)
             
             # Wait for completion
-            result = self._wait_for_completion(job_name)
+            result = self._wait_for_completion(job_name, timeout=timeout)
             
             # Clean up temporary S3 file if we uploaded it
             if audio_config.content:

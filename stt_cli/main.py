@@ -108,6 +108,14 @@ def cli():
     "Can also be set via STT_CLI_S3_BUCKET environment variable.",
 )
 @click.option(
+    "--timeout",
+    type=int,
+    default=3600,
+    envvar="STT_CLI_TIMEOUT",
+    help="Timeout in seconds for transcription job (default: 3600). "
+    "Can also be set via STT_CLI_TIMEOUT environment variable.",
+)
+@click.option(
     "--debug",
     is_flag=True,
     help="Enable debug logging",
@@ -123,6 +131,7 @@ def transcribe(
     aws_secret_access_key: Optional[str] = None,
     aws_region: str = "us-east-1",
     s3_bucket: Optional[str] = None,
+    timeout: int = 3600,
     debug: bool = False,
 ):
     """Transcribe audio file with speaker diarization and language detection."""
@@ -196,6 +205,7 @@ def transcribe(
             min_speakers=min_speakers,
             max_speakers=max_speakers,
             languages=list(languages),
+            timeout=timeout,
         )
         end_time = time.time()
         duration = round(end_time - start_time, 2)
